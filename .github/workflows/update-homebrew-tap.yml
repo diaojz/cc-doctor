@@ -1,0 +1,111 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types:
+      - published
+      - prereleased
+
+permissions:
+  contents: read
+
+jobs:
+  update-homebrew-tap:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    env:
+      HOMEBREW_TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
+      HOMEBREW_TAP_CASK_PATH: ${{ vars.HOMEBREW_TAP_CASK_PATH }}
+      HOMEBREW_TAP_CASK_TOKEN: ${{ vars.HOMEBREW_TAP_CASK_TOKEN }}
+    steps:
+      - name: Validate Homebrew tap configuration
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOMEBREW_TAP_REPO:-}" ]; then
+            echo "Missing repository variable HOMEBREW_TAP_REPO (example: diaojz/homebrew-cc-doctor)." >&2
+            exit 1
+          fi
+          if [ -z "${HOMEBREW_TAP_TOKEN:-}" ]; then
+            echo "Missing secret HOMEBREW_TAP_TOKEN." >&2
+            exit 1
+          fi
+          if [ -z "${HOMEBREW_TAP_CASK_PATH:-}" ]; then
+            echo "HOMEBREW_TAP_CASK_PATH=Casks/cc-doctor.rb" >> "$GITHUB_ENV"
+          else
+            echo "HOMEBREW_TAP_CASK_PATH=${HOMEBREW_TAP_CASK_PATH}" >> "$GITHUB_ENV"
+          fi
+          if [ -z "${HOMEBREW_TAP_CASK_TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_CASK_TOKEN=cc-doctor" >> "$GITHUB_ENV"
+          else
+            echo "HOMEBREW_TAP_CASK_TOKEN=${HOMEBREW_TAP_CASK_TOKEN}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Checkout source repository
+        uses: actions/checkout@v6
+
+      - name: Resolve macOS DMG asset
+        id: asset
+        env:
+          RELEASE_JSON: ${{ toJson(github.event.release) }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+import json
+import os
+import sys
+
+release = json.loads(os.environ['RELEASE_JSON'])
+assets = release.get('assets', [])
+tag = release['tag_name']
+for asset in assets:
+    name = asset.get('name', '')
+    digest = asset.get('digest', '')
+    if name.endswith('-macOS.dmg') and digest.startswith('sha256:'):
+        print(f"asset_name={name}")
+        print(f"sha256={digest.split(':', 1)[1]}")
+        print(f"version={tag[1:] if tag.startswith('v') else tag}")
+        sys.exit(0)
+raise SystemExit('No macOS DMG asset with sha256 digest found in release payload.')
+PY
+
+      - name: Generate cask file
+        run: |
+          set -euo pipefail
+          mkdir -p .homebrew-tap
+          node scripts/generate-homebrew-cask.mjs \
+            "${{ env.HOMEBREW_TAP_CASK_TOKEN }}" \
+            "${{ github.event.release.tag_name }}" \
+            "${{ steps.asset.outputs.sha256 }}" \
+            "${{ github.repository_owner }}" \
+            "${{ github.event.repository.name }}" \
+            > .homebrew-tap/cc-doctor.rb
+
+      - name: Checkout tap repository
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.HOMEBREW_TAP_REPO }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update tap cask
+        run: |
+          set -euo pipefail
+          mkdir -p "homebrew-tap/$(dirname "$HOMEBREW_TAP_CASK_PATH")"
+          cp .homebrew-tap/cc-doctor.rb "homebrew-tap/$HOMEBREW_TAP_CASK_PATH"
+
+      - name: Commit and push tap update
+        run: |
+          set -euo pipefail
+          cd homebrew-tap
+          if git diff --quiet -- "$HOMEBREW_TAP_CASK_PATH"; then
+            echo "No Homebrew cask changes detected."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$HOMEBREW_TAP_CASK_PATH"
+          git commit -m "cask: update cc-doctor to ${{ steps.asset.outputs.version }}"
+          git push
