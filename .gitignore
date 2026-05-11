@@ -32,3 +32,23 @@ CODEBUDDY.md
 # 本地 trace 与一次性修改报告产物
 .traces/
 docs/modification-test-report.md
+
+# 凭证与密钥（防御性 — 任何位置都不应入仓）
+*.p12
+*.pfx
+*.key
+*.keystore
+*.jks
+*.mobileprovision
+*.cer
+*.crt
+*.pem
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.gpg
+secrets.json
+credentials.json
+.env.*
+!.env.example
