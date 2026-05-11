@@ -13,14 +13,14 @@ GEMINI.md
 /.claude
 /.codex
 /.gemini
-/.cc-switch
+/.cc-doctor
 /.idea
 /.vscode
 vitest-report.json
 nul
 
 # Flatpak build artifacts
-flatpak/cc-switch.deb
+flatpak/cc-doctor.deb
 flatpak-build/
 flatpak-repo/
 .worktrees/
@@ -29,3 +29,7 @@ copilot-api
 .history
 CODEBUDDY.md
 .github
+
+# 本地 trace 与一次性修改报告产物
+.traces/
+docs/modification-test-report.md

@@ -1,0 +1,139 @@
+import { invoke } from "@tauri-apps/api/core";
+
+// ─── Types ────────────────────────────────────────────────────
+
+export type HealthStatus =
+  | "Healthy"
+  | "NeedsInstall"
+  | "NeedsRepair"
+  | "PartiallyHealthy";
+
+export type IssueSeverity = "Critical" | "High" | "Medium" | "Low";
+
+export type IssueCategory =
+  | "NotInstalled"
+  | "EnvConflict"
+  | "ConfigCorrupted"
+  | "PermissionDenied"
+  | "VersionOutdated"
+  | "NodeJsMissing";
+
+export interface FixAction {
+  type:
+    | "InstallTool"
+    | "InstallNodeJs"
+    | "RemoveEnvVar"
+    | "RepairConfig"
+    | "FixPermission"
+    | "UpdateTool";
+  tool?: string;
+  var_name?: string;
+  source?: string;
+  /**
+   * RemoveEnvVar 专用：诊断阶段从 EnvConflict 透传过来的真实值。
+   * Windows 上注册表与进程环境可能不同步，这里保留真实值用于备份回滚。
+   */
+  var_value?: string;
+  path?: string;
+  current?: string;
+  latest?: string;
+}
+
+export interface DiagnosisIssue {
+  id: string;
+  severity: IssueSeverity;
+  category: IssueCategory;
+  title: string;
+  description: string;
+  auto_fixable: boolean;
+  fix_action?: FixAction;
+}
+
+export interface ToolStatus {
+  installed: boolean;
+  version?: string;
+  latest_version?: string;
+  issues: string[];
+}
+
+export interface DiagnosisResult {
+  overall_status: HealthStatus;
+  issues: DiagnosisIssue[];
+  tools_status: Record<string, ToolStatus>;
+}
+
+export interface InstallResult {
+  success: boolean;
+  message: string;
+  installed_version?: string;
+  action?: "install" | "upgrade" | "none";
+  already_installed?: boolean;
+  verified?: boolean;
+  error_code?: string;
+}
+
+export interface FixError {
+  issueId: string;
+  message: string;
+  /**
+   * 机器可读的错误码。常见值：
+   * - "requires_admin"：HKLM 注册表写入失败，需要以管理员身份重启 cc-doctor
+   */
+  errorCode?: string;
+}
+
+export interface FixResult {
+  fixed: string[];
+  failed: FixError[];
+}
+
+// ─── 卸载类型 ───
+
+export type UninstallStepStatus = "Success" | "Skipped" | "Failed";
+export type UninstallOverallStatus = "Success" | "Partial" | "Failed";
+
+export interface UninstallStep {
+  name: string;
+  status: UninstallStepStatus;
+  message: string;
+}
+
+export interface UninstallReport {
+  backupPath: string;
+  steps: UninstallStep[];
+  overall: UninstallOverallStatus;
+}
+
+// ─── API ──────────────────────────────────────────────────────
+
+export const doctorApi = {
+  async diagnoseEnvironment(): Promise<DiagnosisResult> {
+    return await invoke("diagnose_environment");
+  },
+
+  /**
+   * 流式安装：channelId 由前端生成（通常来自 useInstallLogStream.start()），
+   * 后端会按该 id emit `install-log` / `install-log-done` 事件。
+   */
+  async installTool(tool: string, channelId: string): Promise<InstallResult> {
+    return await invoke("install_tool", { tool, channelId });
+  },
+
+  async fixEnvironment(issues: DiagnosisIssue[]): Promise<FixResult> {
+    return await invoke("fix_environment", { issues });
+  },
+
+  async uninstallClaudeCode(
+    dryRun: boolean,
+    channelId: string,
+  ): Promise<UninstallReport> {
+    return await invoke("uninstall_claude_code", { dryRun, channelId });
+  },
+
+  /**
+   * 中止某个进行中的会话。命令幂等：channel 不存在或已结束都返回 false。
+   */
+  async cancelInstall(channelId: string): Promise<boolean> {
+    return await invoke("cancel_install", { channelId });
+  },
+};

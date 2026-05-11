@@ -1,8 +1,13 @@
 pub mod balance;
+#[cfg(target_os = "macos")]
+pub mod brew_migration;
+pub mod claude_installer;
 pub mod coding_plan;
 pub mod config;
 pub mod env_checker;
+pub mod env_doctor;
 pub mod env_manager;
+pub mod installer;
 pub mod mcp;
 pub mod model_fetch;
 pub mod omo;
@@ -15,7 +20,9 @@ pub mod session_usage_gemini;
 pub mod skill;
 pub mod speedtest;
 pub mod stream_check;
+pub mod stream_command;
 pub mod subscription;
+pub mod uninstall;
 pub mod usage_cache;
 pub mod usage_stats;
 pub mod webdav;

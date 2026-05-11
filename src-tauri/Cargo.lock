@@ -734,8 +734,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "cc-switch"
-version = "3.14.1"
+name = "cc-doctor"
+version = "3.15.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -798,6 +798,7 @@ dependencies = [
  "uuid",
  "webkit2gtk",
  "webpki-roots 0.26.11",
+ "winapi",
  "winreg 0.52.0",
  "zip 2.4.2",
 ]
@@ -5958,6 +5959,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

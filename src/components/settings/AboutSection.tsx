@@ -27,7 +27,9 @@ import { relaunchApp } from "@/lib/updater";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import appIcon from "@/assets/icons/app-icon.png";
-import { isWindows } from "@/lib/platform";
+import { DangerZoneCard } from "./DangerZoneCard";
+import { EnvironmentDoctorPanel } from "./EnvironmentDoctorPanel";
+import { doctorApi, type DiagnosisResult } from "@/lib/api/doctor";
 
 interface AboutSectionProps {
   isPortable: boolean;
@@ -42,7 +44,9 @@ interface ToolVersion {
   wsl_distro: string | null;
 }
 
-const TOOL_NAMES = ["claude", "codex", "gemini", "opencode"] as const;
+type InstallActionState = "install" | "upgrade" | "installed";
+
+const TOOL_NAMES = ["claude"] as const;
 type ToolName = (typeof TOOL_NAMES)[number];
 
 type WslShellPreference = {
@@ -81,13 +85,7 @@ const ENV_BADGE_CONFIG: Record<
 };
 
 const ONE_CLICK_INSTALL_COMMANDS = `# Claude Code (Native install - recommended)
-curl -fsSL https://claude.ai/install.sh | bash
-# Codex
-npm i -g @openai/codex@latest
-# Gemini CLI
-npm i -g @google/gemini-cli@latest
-# OpenCode
-curl -fsSL https://opencode.ai/install | bash`;
+curl -fsSL https://claude.ai/install.sh | bash`;
 
 export function AboutSection({ isPortable }: AboutSectionProps) {
   // ... (use hooks as before) ...
@@ -97,6 +95,12 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [toolVersions, setToolVersions] = useState<ToolVersion[]>([]);
   const [isLoadingTools, setIsLoadingTools] = useState(true);
+
+  // 环境诊断状态
+  const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [isVerifyingInstall, setIsVerifyingInstall] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
 
   const {
     hasUpdate,
@@ -198,14 +202,16 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     let active = true;
     const load = async () => {
       try {
-        const [appVersion] = await Promise.all([
-          getVersion(),
-          ...(isWindows() ? [] : [loadAllToolVersions()]),
-        ]);
+        const appVersion = await getVersion();
 
         if (active) {
           setVersion(appVersion);
         }
+
+        await Promise.all([
+          loadAllToolVersions(),
+          runDiagnosis(),
+        ]);
       } catch (error) {
         console.error("[AboutSection] Failed to load info", error);
         if (active) {
@@ -241,13 +247,13 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
 
       if (!displayVersion) {
         await settingsApi.openExternal(
-          "https://github.com/farion1231/cc-switch/releases",
+          "https://github.com/diaojz/cc-doctor/releases",
         );
         return;
       }
 
       await settingsApi.openExternal(
-        `https://github.com/farion1231/cc-switch/releases/tag/${displayVersion}`,
+        `https://github.com/diaojz/cc-doctor/releases/tag/${displayVersion}`,
       );
     } catch (error) {
       console.error("[AboutSection] Failed to open release notes", error);
@@ -309,7 +315,142 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     }
   }, [t]);
 
+  // 环境诊断相关函数
+  const runDiagnosis = useCallback(async () => {
+    try {
+      const result = await doctorApi.diagnoseEnvironment();
+      setDiagnosis(result);
+    } catch (error) {
+      console.error("[AboutSection] Failed to diagnose environment", error);
+      // 静默失败，不影响其他功能
+    }
+  }, []);
+
+  const handleInstall = useCallback(async (tool: string, channelId?: string) => {
+    const toolLabel = tool === "claude" ? "Claude Code" : tool;
+    // 工具卡片按钮直接调用时不带 channelId，发一个 fallback 让后端仍能 emit
+    // 但前端不订阅。EnvironmentDoctorPanel 入口会传真实 channelId 用于流式日志。
+    const cid = channelId ?? `legacy-install-${Date.now()}`;
+    setIsInstalling(true);
+    try {
+      const result = await doctorApi.installTool(tool, cid);
+
+      if (result.already_installed || result.action === "none") {
+        toast.success(t("doctor.alreadyInstalled", { tool: toolLabel }));
+        await Promise.all([runDiagnosis(), loadAllToolVersions()]);
+        return;
+      }
+
+      if (!result.success) {
+        toast.error(
+          result.message || t("doctor.installFailedGeneric"),
+          { closeButton: true },
+        );
+        await Promise.all([runDiagnosis(), loadAllToolVersions()]);
+        return;
+      }
+
+      setIsVerifyingInstall(true);
+      await Promise.all([runDiagnosis(), loadAllToolVersions()]);
+
+      if (result.verified === false) {
+        toast.error(t("doctor.installVerificationFailed"), {
+          closeButton: true,
+        });
+        return;
+      }
+
+      if (result.action === "upgrade" && result.installed_version) {
+        toast.success(
+          t("doctor.upgradeSuccess", {
+            tool: toolLabel,
+            version: result.installed_version,
+          }),
+          { closeButton: true },
+        );
+        return;
+      }
+
+      toast.success(t("doctor.installSuccess", { tool: toolLabel }), {
+        closeButton: true,
+      });
+    } catch (error) {
+      console.error("[AboutSection] Failed to install tool", error);
+      toast.error(t("doctor.installFailedGeneric"), { closeButton: true });
+    } finally {
+      setIsInstalling(false);
+      setIsVerifyingInstall(false);
+    }
+  }, [loadAllToolVersions, runDiagnosis, t]);
+
+  const handleFix = useCallback(async () => {
+    if (!diagnosis) return;
+
+    setIsFixing(true);
+    try {
+      const fixableIssues = diagnosis.issues.filter((i) => i.auto_fixable);
+      const result = await doctorApi.fixEnvironment(fixableIssues);
+
+      if (result.fixed.length > 0) {
+        toast.success(t("doctor.fixSuccess", { count: result.fixed.length }));
+      }
+
+      if (result.failed.length > 0) {
+        const requiresAdmin = result.failed.some(
+          (failure) => failure.errorCode === "requires_admin",
+        );
+        if (requiresAdmin) {
+          // HKLM 写注册表必须 elevated。直接展示 raw error 容易让用户
+          // 误以为是 cc-doctor 出 bug，所以走专门的引导文案。
+          toast.error(t("doctor.fixRequiresAdmin"), { closeButton: true });
+        } else {
+          const failedMessages = result.failed
+            .map((failure) => `${failure.issueId}: ${failure.message}`)
+            .join("\n");
+          toast.error(t("doctor.fixFailed", { error: failedMessages }));
+        }
+      }
+
+      await runDiagnosis(); // 重新诊断
+    } catch (error) {
+      console.error("[AboutSection] Failed to fix environment", error);
+      toast.error(t("doctor.fixFailed", { error: String(error) }));
+    } finally {
+      setIsFixing(false);
+    }
+  }, [t, diagnosis, runDiagnosis]);
+
   const displayVersion = version ?? t("common.unknown");
+  const claudeTool = toolVersions.find((item) => item.name === "claude");
+  const claudeInstalled = Boolean(claudeTool?.version);
+  const claudeUpgradable = Boolean(
+    claudeTool?.version &&
+      claudeTool.latest_version &&
+      claudeTool.version !== claudeTool.latest_version,
+  );
+  const installActionState: InstallActionState = claudeInstalled
+    ? claudeUpgradable
+      ? "upgrade"
+      : "installed"
+    : "install";
+  const installButtonLabel = isInstalling
+    ? t("doctor.installing")
+    : isVerifyingInstall
+      ? t("doctor.verifying")
+      : installActionState === "upgrade"
+        ? t("settings.upgradeNow")
+        : installActionState === "installed"
+          ? t("settings.installed")
+          : t("settings.installNow");
+  const installHint = isInstalling
+    ? t("doctor.installing")
+    : isVerifyingInstall
+      ? t("settings.verifyingInstall")
+      : installActionState === "upgrade"
+        ? t("settings.upgradeReady")
+        : installActionState === "installed"
+          ? t("settings.installedStatusHint")
+          : t("settings.installReady");
 
   return (
     <motion.section
@@ -334,9 +475,9 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <img src={appIcon} alt="CC Switch" className="h-5 w-5" />
+              <img src={appIcon} alt="CC Doctor" className="h-5 w-5" />
               <h4 className="text-lg font-semibold text-foreground">
-                CC Switch
+                {t("app.title")}
               </h4>
             </div>
             <div className="flex items-center gap-2">
@@ -424,8 +565,18 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
         )}
       </motion.div>
 
-      {!isWindows() && (
-        <div className="space-y-3">
+      {/* 环境诊断面板 */}
+      {diagnosis && (
+        <EnvironmentDoctorPanel
+          diagnosis={diagnosis}
+          onInstall={handleInstall}
+          onFix={handleFix}
+          isInstalling={isInstalling}
+          isFixing={isFixing}
+        />
+      )}
+
+      <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-medium">
               {t("settings.localEnvCheck")}
@@ -446,121 +597,102 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
             </Button>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 px-1">
-            {TOOL_NAMES.map((toolName, index) => {
-              const tool = toolVersions.find((item) => item.name === toolName);
-              // Special case for OpenCode (capital C), others use capitalize
-              const displayName =
-                toolName === "opencode"
-                  ? "OpenCode"
-                  : toolName.charAt(0).toUpperCase() + toolName.slice(1);
-              const title = tool?.version || tool?.error || t("common.unknown");
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 px-1">
+            {(() => {
+              const cards = claudeTool ? [claudeTool] : [];
 
-              return (
-                <motion.div
-                  key={toolName}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.15 + index * 0.05 }}
-                  whileHover={{ scale: 1.02 }}
-                  className="flex flex-col gap-2 rounded-xl border border-border bg-gradient-to-br from-card/80 to-card/40 p-4 shadow-sm transition-colors hover:border-primary/30"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Terminal className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">{displayName}</span>
-                      {/* Environment Badge */}
-                      {tool?.env_type && ENV_BADGE_CONFIG[tool.env_type] && (
-                        <span
-                          className={`text-[9px] px-1.5 py-0.5 rounded-full border ${ENV_BADGE_CONFIG[tool.env_type].className}`}
-                        >
-                          {t(ENV_BADGE_CONFIG[tool.env_type].labelKey)}
-                        </span>
-                      )}
-                      {/* WSL Shell Selector */}
-                      {tool?.env_type === "wsl" && (
-                        <Select
-                          value={wslShellByTool[toolName]?.wslShell || "auto"}
-                          onValueChange={(v) =>
-                            handleToolShellChange(toolName, v)
-                          }
-                          disabled={isLoadingTools || loadingTools[toolName]}
-                        >
-                          <SelectTrigger className="h-6 w-[70px] text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="auto">
-                              {t("common.auto")}
-                            </SelectItem>
-                            {WSL_SHELL_OPTIONS.map((shell) => (
-                              <SelectItem key={shell} value={shell}>
-                                {shell}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {/* WSL Shell Flag Selector */}
-                      {tool?.env_type === "wsl" && (
-                        <Select
-                          value={
-                            wslShellByTool[toolName]?.wslShellFlag || "auto"
-                          }
-                          onValueChange={(v) =>
-                            handleToolShellFlagChange(toolName, v)
-                          }
-                          disabled={isLoadingTools || loadingTools[toolName]}
-                        >
-                          <SelectTrigger className="h-6 w-[70px] text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="auto">
-                              {t("common.auto")}
-                            </SelectItem>
-                            {WSL_SHELL_FLAG_OPTIONS.map((flag) => (
-                              <SelectItem key={flag} value={flag}>
-                                {flag}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+              return cards.map((tool, index) => {
+                const toolName = tool.name as ToolName;
+                const displayName = "Claude Code";
+                const title = tool.version || tool.error || t("common.unknown");
+                const versionText = tool.version ? tool.version : tool.error || t("common.notInstalled");
+
+                return (
+                  <motion.div
+                    key={tool.name}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.15 + index * 0.05 }}
+                    whileHover={{ scale: 1.02 }}
+                    className="flex flex-col gap-2 rounded-xl border border-border bg-gradient-to-br from-card/80 to-card/40 p-4 shadow-sm transition-colors hover:border-primary/30"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Terminal className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{displayName}</span>
+                        {tool?.env_type && ENV_BADGE_CONFIG[tool.env_type] && (
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded-full border ${ENV_BADGE_CONFIG[tool.env_type].className}`}
+                          >
+                            {t(ENV_BADGE_CONFIG[tool.env_type].labelKey)}
+                          </span>
+                        )}
+                        {tool.name === "claude" && tool?.env_type === "wsl" && (
+                          <>
+                            <Select
+                              value={wslShellByTool[toolName]?.wslShell || "auto"}
+                              onValueChange={(v) => handleToolShellChange(toolName, v)}
+                              disabled={isLoadingTools || loadingTools[toolName]}
+                            >
+                              <SelectTrigger className="h-6 w-[70px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="auto">{t("common.auto")}</SelectItem>
+                                {WSL_SHELL_OPTIONS.map((shell) => (
+                                  <SelectItem key={shell} value={shell}>
+                                    {shell}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={wslShellByTool[toolName]?.wslShellFlag || "auto"}
+                              onValueChange={(v) => handleToolShellFlagChange(toolName, v)}
+                              disabled={isLoadingTools || loadingTools[toolName]}
+                            >
+                              <SelectTrigger className="h-6 w-[70px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="auto">{t("common.auto")}</SelectItem>
+                                {WSL_SHELL_FLAG_OPTIONS.map((flag) => (
+                                  <SelectItem key={flag} value={flag}>
+                                    {flag}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </>
+                        )}
+                      </div>
+                      {isLoadingTools || (tool.name === "claude" && loadingTools[toolName]) ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : tool.version ? (
+                        tool.latest_version && tool.version !== tool.latest_version ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">
+                            {tool.latest_version}
+                          </span>
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        )
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-yellow-500" />
                       )}
                     </div>
-                    {isLoadingTools || loadingTools[toolName] ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : tool?.version ? (
-                      tool.latest_version &&
-                      tool.version !== tool.latest_version ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">
-                          {tool.latest_version}
-                        </span>
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      )
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-yellow-500" />
-                    )}
-                  </div>
-                  <div
-                    className="text-xs font-mono text-muted-foreground truncate"
-                    title={title}
-                  >
-                    {isLoadingTools
-                      ? t("common.loading")
-                      : tool?.version
-                        ? tool.version
-                        : tool?.error || t("common.notInstalled")}
-                  </div>
-                </motion.div>
-              );
-            })}
+                    <div
+                      className="text-xs font-mono text-muted-foreground truncate"
+                      title={title}
+                    >
+                      {isLoadingTools ? t("common.loading") : versionText}
+                    </div>
+                  </motion.div>
+                );
+              });
+            })()}
           </div>
         </div>
-      )}
 
-      {!isWindows() && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -573,24 +705,60 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           <div className="rounded-xl border border-border bg-gradient-to-br from-card/80 to-card/40 p-4 space-y-3 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">
-                {t("settings.oneClickInstallHint")}
+                {installHint}
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCopyInstallCommands}
-                className="h-7 gap-1.5 text-xs"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {t("common.copy")}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => handleInstall("claude")}
+                  disabled={
+                    isInstalling ||
+                    isVerifyingInstall ||
+                    installActionState === "installed"
+                  }
+                  className="h-7 gap-1.5 text-xs"
+                >
+                  {isInstalling || isVerifyingInstall ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {installButtonLabel}
+                    </>
+                  ) : installActionState === "upgrade" ? (
+                    <>
+                      <Download className="h-3.5 w-3.5" />
+                      {installButtonLabel}
+                    </>
+                  ) : installActionState === "installed" ? (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {installButtonLabel}
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-3.5 w-3.5" />
+                      {installButtonLabel}
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCopyInstallCommands}
+                  className="h-7 gap-1.5 text-xs"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {t("common.copy")}
+                </Button>
+              </div>
             </div>
             <pre className="text-xs font-mono bg-background/80 px-3 py-2.5 rounded-lg border border-border/60 overflow-x-auto">
               {ONE_CLICK_INSTALL_COMMANDS}
             </pre>
           </div>
         </motion.div>
-      )}
+
+        {/* 危险操作放在最末尾，跟高频环境检查/安装区域明确分离，避免误触 */}
+        <DangerZoneCard />
     </motion.section>
   );
 }
