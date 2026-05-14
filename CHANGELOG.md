@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-05-14
+
+This release introduces a brand-new **Terminal Setup** module — a macOS-only one-click installer for a modern terminal workflow (Ghostty + Zoxide + Yazi + Oh-My-Zsh + zsh plugins). It also hardens shared install infrastructure so cancellation actually terminates child trees and stale brew locks self-heal.
+
+### Added
+
+- **Terminal Setup (macOS)**: New top-level "Terminal Beautify" entry (Sparkles ✨ icon next to the Settings gear, macOS-only) opens a panel that detects Homebrew + per-component install state, installs any combination of Ghostty / Zoxide / Yazi (with `ffmpegthumbnailer` + `poppler` preview deps) / Oh-My-Zsh / `zsh-syntax-highlighting` + `zsh-autosuggestions` via streaming-log Tauri commands, then writes opinionated `~/.config/ghostty/config`, `~/.config/yazi/*.toml`, and a `# >>> cc-doctor terminal setup >>>` marker block into `~/.zshrc`. Re-runs replace only the marker block, never user content outside it.
+- **Filesystem-fallback detection**: Ghostty detection also checks `/Applications/Ghostty.app` and `~/Applications/Ghostty.app`, so DMG-installed copies are recognized in addition to `brew list --cask ghostty`.
+- **Backup management UI**: Each `.bak.<unix_ts>` shown in the install summary now has Copy / Restore / Delete buttons. Restore uses `fs::copy` so the backup is preserved for repeat rollbacks; delete only accepts paths matching `.bak.<digits>` to refuse anything that isn't actually a backup.
+- **"Open New Terminal" button**: Replaces the awkward "please run `source ~/.zshrc`" instruction with a button that spawns a fresh Ghostty → iTerm → Terminal window via `open -a`, letting the new shell load `.zshrc` naturally. `source` is a shell builtin and can't be invoked from outside the user's current shell process.
+- **Stale brew lock self-heal**: Before any `brew install`, the install flow runs `cleanup_stale_brew_locks` — if `pgrep -f "brew (install|update|vendor-install|cleanup)"` returns no real brew processes, orphaned locks in `var/homebrew/locks/{update,cleanup,vendor-install-*}` and `~/Library/Caches/Homebrew/downloads/*.{incomplete,lock}` are deleted so the next install isn't blocked by "already locked" from a previously cancelled session.
+
+### Changed
+
+- **Process-group kill on cancel**: `stream_command` now spawns children with `process_group(0)` on Unix and kills via `/bin/kill -TERM/-KILL -<pgid>` on cancel. This is a generic improvement that also benefits Claude Code install / uninstall — previously SIGKILL only hit the direct child while `brew install`'s grandchildren (curl, git, ruby) kept the stdout pipe open, leaving the reader task waiting forever and the UI stuck at "installing...". Windows behavior is unchanged (OS limitation).
+- **Brew install always `HOMEBREW_NO_AUTO_UPDATE=1`**: All `brew install` invocations in the Terminal Setup flow run through `bash -c 'HOMEBREW_NO_AUTO_UPDATE=1 brew ...'`. This skips the auto-update step that would otherwise contend with the global `brew update` lock — a frequent cause of "Another `brew update` process is already running" failures.
+- **Yazi component installs only what's actually missing**: `install_yazi` runs `which yazi`, `which ffmpegthumbnailer`, and `which pdfinfo` (poppler) separately, then `brew install`s only the missing pieces. Previously it always re-ran `brew install yazi ffmpegthumbnailer poppler` even when all three were up to date.
+- **Backup is skipped for cc-doctor-managed files**: `backup_if_exists` now bails out early when the target file starts with the `# cc-doctor managed file` header. Repeated installs no longer accumulate identical "backup-of-our-own-backup" files that bury the user's real original config.
+- **Default Ghostty config replaced with a hardened "performance-tuned" version**: Inline config now ships with JetBrainsMono Nerd Font @ 18pt + `font-thicken` + `-calt` (ligatures off), `theme = light:GitHub Light Default,dark:Catppuccin Mocha` with auto window-theme, `minimum-contrast = 4.5` to keep dim text legible (e.g. Claude Code's secondary gray on light backgrounds), `scrollback-limit = 100000`, transparent macOS titlebar, `macos-option-as-alt`, working-directory + font-size inheritance, and an extensive Cmd-key shortcut set (tabs 1–5, `cmd+u` right-split, `cmd+shift+{j,k,h,l}` between splits, `cmd+ctrl+l` redraw, global `cmd+backquote` quick terminal).
+
+### Removed
+
+- **Maple Mono NF CN font installation**: The font's brew cask download repeatedly leaves `.incomplete.download.lock` artifacts when interrupted, and Ghostty silently falls back to the system default when the font is missing — so the cask is no longer a selectable component. The font-notice card in the panel now points users at the manual `brew install --cask font-jetbrains-mono-nerd-font` command if they want the configured family.
+
 ### Fixed
 
 - **OpenAI Responses API usage parsing robustness**: Hardened `build_anthropic_usage_from_responses()` and the Responses → Anthropic SSE translator so a missing or malformed upstream `usage` no longer produces `"usage": null` in `message_delta`. This unblocks strict Anthropic clients (notably the VSCode Claude Code extension) that crashed with "Cannot read properties of null (reading 'output_tokens')" against providers such as Codex OAuth and DashScope's `compatible-mode/v1/responses` endpoint. Added OpenAI field-name fallbacks (`prompt_tokens` / `completion_tokens`), null/empty/partial object handling, and preserved cache token fields even when input/output tokens are missing (#2422).
