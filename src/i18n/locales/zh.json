@@ -2563,7 +2563,20 @@
       "ohMyZshDesc": "zsh 配置框架",
       "zshPlugins": "Zsh 插件",
       "zshPluginsDesc": "语法高亮 + 自动建议"
-    }
+    },
+    "backup": {
+      "restore": "恢复",
+      "delete": "删除",
+      "restoreConfirmTitle": "还原备份？",
+      "restoreConfirmDesc": "将 {{backup}} 还原到原路径，覆盖当前配置。备份文件本身会保留。",
+      "restored": "已还原到 {{path}}",
+      "deleteConfirmTitle": "删除备份？",
+      "deleteConfirmDesc": "永久删除 {{backup}}，此操作不可撤销。",
+      "deleted": "已删除"
+    },
+    "openTerminal": "打开新终端",
+    "openTerminalOpened": "已打开 {{app}}",
+    "sourceHintRevised": "配置已写入 ~/.zshrc。点击下方按钮打开新终端窗口，新窗口启动时会自动加载配置；或在已有终端里执行 source ~/.zshrc。"
   },
   "subscription": {
     "title": "订阅额度",

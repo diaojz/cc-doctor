@@ -952,6 +952,78 @@ pub fn remove_zshrc_block() -> Result<bool, String> {
     Ok(true)
 }
 
+// ─── 备份管理 ──────────────────────────────────────────────────────────────
+
+/// 从备份文件名中剥离 `.bak.<unix_ts>` 后缀，返回原始文件名。
+/// 用于把 `config.bak.1778750983` 反推回 `config`。
+fn strip_backup_suffix(name: &str) -> Option<String> {
+    let idx = name.rfind(".bak.")?;
+    let suffix = &name[idx + 5..];
+    if suffix.is_empty() || !suffix.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    Some(name[..idx].to_string())
+}
+
+/// 把备份文件还原到原路径（同目录、去掉 `.bak.<ts>` 后缀）。
+/// 用 `fs::copy` 不删备份，让用户自己决定何时删——这样可以多次回滚。
+pub fn restore_backup(backup_path: &str) -> Result<String, String> {
+    let backup = PathBuf::from(backup_path);
+    if !backup.is_file() {
+        return Err(format!("备份文件不存在: {}", backup_path));
+    }
+    let file_name = backup
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| "无法解析备份文件名".to_string())?;
+    let original_name = strip_backup_suffix(file_name)
+        .ok_or_else(|| format!("文件名不符合 .bak.<unix_ts> 格式: {}", file_name))?;
+    let parent = backup
+        .parent()
+        .ok_or_else(|| "无法获取备份父目录".to_string())?;
+    let original_path = parent.join(&original_name);
+    fs::copy(&backup, &original_path).map_err(|e| {
+        format!(
+            "还原失败 {} -> {}: {}",
+            backup.display(),
+            original_path.display(),
+            e
+        )
+    })?;
+    Ok(original_path.display().to_string())
+}
+
+/// 删除备份文件。出于安全考虑只接受文件名匹配 `.bak.<digits>` 格式的路径，
+/// 拒绝任何看起来不是备份的文件，避免被滥用误删用户数据。
+pub fn delete_backup(backup_path: &str) -> Result<(), String> {
+    let path = PathBuf::from(backup_path);
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| "无法解析文件名".to_string())?;
+    if strip_backup_suffix(file_name).is_none() {
+        return Err(format!("拒绝删除非备份文件: {}", backup_path));
+    }
+    if !path.is_file() {
+        return Err(format!("文件不存在: {}", backup_path));
+    }
+    fs::remove_file(&path).map_err(|e| format!("删除失败 {}: {}", path.display(), e))
+}
+
+/// 打开一个新的终端窗口。按 Ghostty → iTerm → Terminal 顺序尝试。
+/// 用户的 `.zshrc` 会被新窗口的 shell 启动时自然加载，等价于「重启终端」。
+pub fn open_new_terminal_window() -> Result<String, String> {
+    for app in ["Ghostty", "iTerm", "Terminal"] {
+        let out = StdCommand::new("open").args(["-a", app]).output();
+        if let Ok(o) = out {
+            if o.status.success() {
+                return Ok(app.to_string());
+            }
+        }
+    }
+    Err("找不到可用的终端 app（试过 Ghostty / iTerm / Terminal）".to_string())
+}
+
 /// 把两个标记之间（含标记）的整段替换为 `replacement`（replacement 自带换行）。
 fn replace_marker_block(original: &str, replacement: &str) -> String {
     let Some(start) = original.find(ZSHRC_MARKER_BEGIN) else {
@@ -1026,6 +1098,25 @@ mod tests {
         assert!(!out.contains("cc-doctor"));
         assert!(out.contains("A"));
         assert!(out.contains("B"));
+    }
+
+    #[test]
+    fn strip_backup_suffix_works() {
+        assert_eq!(
+            strip_backup_suffix("config.bak.1778750983"),
+            Some("config".into())
+        );
+        assert_eq!(
+            strip_backup_suffix("yazi.toml.bak.1778750983"),
+            Some("yazi.toml".into())
+        );
+        assert_eq!(
+            strip_backup_suffix(".zshrc.bak.1"),
+            Some(".zshrc".into())
+        );
+        assert_eq!(strip_backup_suffix("config"), None);
+        assert_eq!(strip_backup_suffix("config.bak.abc"), None);
+        assert_eq!(strip_backup_suffix("config.bak."), None);
     }
 
     #[test]

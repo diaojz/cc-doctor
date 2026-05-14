@@ -1180,6 +1180,12 @@ pub fn run() {
             commands::terminal_setup_install,
             #[cfg(target_os = "macos")]
             commands::terminal_setup_remove,
+            #[cfg(target_os = "macos")]
+            commands::terminal_setup_restore_backup,
+            #[cfg(target_os = "macos")]
+            commands::terminal_setup_delete_backup,
+            #[cfg(target_os = "macos")]
+            commands::terminal_setup_open_terminal,
             // Skill management (v3.10.0+ unified)
             commands::get_installed_skills,
             commands::get_skill_backups,

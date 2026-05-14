@@ -2580,7 +2580,20 @@
       "ohMyZshDesc": "zsh 設定フレームワーク",
       "zshPlugins": "Zsh プラグイン",
       "zshPluginsDesc": "シンタックスハイライト + 自動補完"
-    }
+    },
+    "backup": {
+      "restore": "復元",
+      "delete": "削除",
+      "restoreConfirmTitle": "バックアップを復元しますか？",
+      "restoreConfirmDesc": "{{backup}} を元のパスに復元し、現在の設定を上書きします。バックアップファイル自体は保持されます。",
+      "restored": "{{path}} に復元しました",
+      "deleteConfirmTitle": "バックアップを削除しますか？",
+      "deleteConfirmDesc": "{{backup}} を完全に削除します。この操作は取り消せません。",
+      "deleted": "削除しました"
+    },
+    "openTerminal": "新しいターミナルを開く",
+    "openTerminalOpened": "{{app}} を開きました",
+    "sourceHintRevised": "設定は ~/.zshrc に書き込まれました。下のボタンをクリックして新しいターミナルウィンドウを開くと、起動時に自動的に設定が読み込まれます。または既存のターミナルで source ~/.zshrc を実行してください。"
   },
   "subscription": {
     "title": "サブスクリプションクォータ",

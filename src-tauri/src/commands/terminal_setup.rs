@@ -238,6 +238,25 @@ async fn run_one_component(
     }
 }
 
+/// 把备份文件还原到原路径（同目录去掉 `.bak.<ts>`）。备份本身保留。
+#[tauri::command]
+pub async fn terminal_setup_restore_backup(backup_path: String) -> Result<String, String> {
+    terminal_setup::restore_backup(&backup_path)
+}
+
+/// 删除备份文件。只接受 `.bak.<unix_ts>` 命名格式，拒绝其他路径。
+#[tauri::command]
+pub async fn terminal_setup_delete_backup(backup_path: String) -> Result<(), String> {
+    terminal_setup::delete_backup(&backup_path)
+}
+
+/// 打开一个新的终端窗口（优先 Ghostty）。新窗口启动时会自动加载新的
+/// .zshrc，等价于「重启终端让配置生效」。
+#[tauri::command]
+pub async fn terminal_setup_open_terminal() -> Result<String, String> {
+    terminal_setup::open_new_terminal_window()
+}
+
 #[tauri::command]
 pub async fn terminal_setup_remove() -> Result<RemoveResult, String> {
     let block_removed = terminal_setup::remove_zshrc_block()?;

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   CheckCircle2,
   XCircle,
@@ -11,6 +12,9 @@ import {
   ChevronUp,
   Copy,
   Check,
+  RotateCcw,
+  Trash2,
+  TerminalSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -505,10 +509,162 @@ function TerminalSetupPanelInner() {
 
 // ─── 安装总结卡片 ──────────────────────────────────────────────
 
+/**
+ * 单条备份路径行：复制 + 恢复 + 删除 三个操作
+ */
+function BackupItem({
+  backupPath,
+  onDelete,
+}: {
+  backupPath: string;
+  onDelete: (path: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  /** 还原备份 */
+  const handleRestore = async () => {
+    setConfirmRestoreOpen(false);
+    setRestoring(true);
+    try {
+      const restoredPath = await terminalSetupApi.restoreBackup({ backupPath });
+      toast.success(t("terminalSetup.backup.restored", { path: restoredPath }));
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  /** 删除备份 */
+  const handleDelete = async () => {
+    setConfirmDeleteOpen(false);
+    setDeleting(true);
+    try {
+      await terminalSetupApi.deleteBackup({ backupPath });
+      toast.success(t("terminalSetup.backup.deleted"));
+      onDelete(backupPath);
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {/* 复制路径 */}
+        <CopyButton text={backupPath} />
+
+        {/* 恢复按钮 */}
+        <button
+          type="button"
+          disabled={restoring || deleting}
+          onClick={() => setConfirmRestoreOpen(true)}
+          className={cn(
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs",
+            "border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+            "dark:border-blue-800/50 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40",
+            "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+          )}
+        >
+          {restoring ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RotateCcw className="h-3 w-3" />
+          )}
+          {t("terminalSetup.backup.restore")}
+        </button>
+
+        {/* 删除按钮 */}
+        <button
+          type="button"
+          disabled={restoring || deleting}
+          onClick={() => setConfirmDeleteOpen(true)}
+          className={cn(
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs",
+            "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+            "dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40",
+            "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+          )}
+        >
+          {deleting ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Trash2 className="h-3 w-3" />
+          )}
+          {t("terminalSetup.backup.delete")}
+        </button>
+      </div>
+
+      {/* 还原二次确认 */}
+      <ConfirmDialog
+        isOpen={confirmRestoreOpen}
+        title={t("terminalSetup.backup.restoreConfirmTitle")}
+        message={t("terminalSetup.backup.restoreConfirmDesc", {
+          backup: backupPath,
+        })}
+        confirmText={t("terminalSetup.backup.restore")}
+        variant="info"
+        onConfirm={handleRestore}
+        onCancel={() => setConfirmRestoreOpen(false)}
+      />
+
+      {/* 删除二次确认 */}
+      <ConfirmDialog
+        isOpen={confirmDeleteOpen}
+        title={t("terminalSetup.backup.deleteConfirmTitle")}
+        message={t("terminalSetup.backup.deleteConfirmDesc", {
+          backup: backupPath,
+        })}
+        confirmText={t("terminalSetup.backup.delete")}
+        variant="destructive"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
+    </>
+  );
+}
+
 function InstallSummaryCard({ result }: { result: TerminalSetupResult }) {
   const { t } = useTranslation();
   const hasZshrc =
     result.zshrcBackup !== null || result.configBackups.length > 0;
+
+  // 本地维护备份列表，以便删除后从 UI 移除
+  const [configBackups, setConfigBackups] = useState<string[]>(
+    result.configBackups,
+  );
+  const [zshrcBackup, setZshrcBackup] = useState<string | null>(
+    result.zshrcBackup,
+  );
+  const [openingTerminal, setOpeningTerminal] = useState(false);
+
+  /** 从列表中移除已删除的备份 */
+  const handleDeletedBackup = (path: string) => {
+    if (path === zshrcBackup) {
+      setZshrcBackup(null);
+    } else {
+      setConfigBackups((prev) => prev.filter((p) => p !== path));
+    }
+  };
+
+  /** 打开新终端窗口 */
+  const handleOpenTerminal = async () => {
+    setOpeningTerminal(true);
+    try {
+      const app = await terminalSetupApi.openTerminal();
+      toast.success(t("terminalSetup.openTerminalOpened", { app }));
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setOpeningTerminal(false);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -528,7 +684,11 @@ function InstallSummaryCard({ result }: { result: TerminalSetupResult }) {
             ) : (
               <XCircle className="h-4 w-4 text-red-500 shrink-0" />
             )}
-            <span className={cn(!step.success && !step.skipped && "text-red-600 dark:text-red-400")}>
+            <span
+              className={cn(
+                !step.success && !step.skipped && "text-red-600 dark:text-red-400",
+              )}
+            >
               {step.component}
               {step.skipped && (
                 <span className="ml-1 text-xs text-muted-foreground">
@@ -544,28 +704,58 @@ function InstallSummaryCard({ result }: { result: TerminalSetupResult }) {
           </div>
         ))}
 
-        {/* 备份路径 */}
-        {(result.configBackups.length > 0 || result.zshrcBackup) && (
-          <div className="mt-3 pt-3 border-t border-border space-y-1.5">
+        {/* 备份路径列表 */}
+        {(configBackups.length > 0 || zshrcBackup) && (
+          <div className="mt-3 pt-3 border-t border-border space-y-2">
             <p className="text-xs font-medium text-muted-foreground">
               已备份的配置文件：
             </p>
-            {result.zshrcBackup && (
-              <CopyButton text={result.zshrcBackup} />
+            {zshrcBackup && (
+              <BackupItem
+                backupPath={zshrcBackup}
+                onDelete={handleDeletedBackup}
+              />
             )}
-            {result.configBackups.map((path) => (
-              <CopyButton key={path} text={path} className="block" />
+            {configBackups.map((path) => (
+              <BackupItem
+                key={path}
+                backupPath={path}
+                onDelete={handleDeletedBackup}
+              />
             ))}
           </div>
         )}
 
-        {/* source 提示 */}
+        {/* source 提示（含打开新终端按钮） */}
         {hasZshrc && (
-          <div className="mt-3 pt-3 border-t border-border rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 px-3 py-2">
-            <p className="text-xs text-amber-800 dark:text-amber-300 mb-2">
-              {t("terminalSetup.sourceHint")}
+          <div className="mt-3 pt-3 border-t border-border rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 px-3 py-2 space-y-2">
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              {t("terminalSetup.sourceHintRevised")}
             </p>
-            <CopyButton text="source ~/.zshrc" />
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* 打开新终端主按钮 */}
+              <button
+                type="button"
+                disabled={openingTerminal}
+                onClick={handleOpenTerminal}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium",
+                  "bg-amber-600 hover:bg-amber-700 text-white",
+                  "dark:bg-amber-700 dark:hover:bg-amber-600",
+                  "transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                )}
+              >
+                {openingTerminal ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <TerminalSquare className="h-3 w-3" />
+                )}
+                {t("terminalSetup.openTerminal")}
+              </button>
+
+              {/* 备选：复制 source 命令 */}
+              <CopyButton text="source ~/.zshrc" />
+            </div>
           </div>
         )}
       </div>

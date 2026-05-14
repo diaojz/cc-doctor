@@ -2563,7 +2563,20 @@
       "ohMyZshDesc": "zsh configuration framework",
       "zshPlugins": "Zsh Plugins",
       "zshPluginsDesc": "Syntax highlighting + autosuggestions"
-    }
+    },
+    "backup": {
+      "restore": "Restore",
+      "delete": "Delete",
+      "restoreConfirmTitle": "Restore backup?",
+      "restoreConfirmDesc": "Restore {{backup}} to its original path, overwriting the current config. The backup file itself will be kept.",
+      "restored": "Restored to {{path}}",
+      "deleteConfirmTitle": "Delete backup?",
+      "deleteConfirmDesc": "Permanently delete {{backup}}. This action cannot be undone.",
+      "deleted": "Deleted"
+    },
+    "openTerminal": "Open new terminal",
+    "openTerminalOpened": "Opened {{app}}",
+    "sourceHintRevised": "Config written to ~/.zshrc. Click the button below to open a new terminal window — it will load the config automatically on startup. Or run source ~/.zshrc in an existing terminal."
   },
   "subscription": {
     "title": "Subscription Quota",

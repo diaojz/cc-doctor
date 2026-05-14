@@ -95,4 +95,27 @@ export const terminalSetupApi = {
   async cancel(channelId: string): Promise<boolean> {
     return await invoke("cancel_install", { channelId });
   },
+
+  /**
+   * 将备份文件（.bak.<ts> 格式）还原到原路径，备份本身保留。
+   * 返回还原后的目标路径。
+   */
+  async restoreBackup({ backupPath }: { backupPath: string }): Promise<string> {
+    return await invoke("terminal_setup_restore_backup", { backupPath });
+  },
+
+  /**
+   * 删除备份文件。后端只接受 .bak.<digits> 命名，其他路径会被拒绝。
+   */
+  async deleteBackup({ backupPath }: { backupPath: string }): Promise<void> {
+    return await invoke("terminal_setup_delete_backup", { backupPath });
+  },
+
+  /**
+   * 打开新终端窗口（优先 Ghostty → iTerm → Terminal）。
+   * 返回实际打开的 app 名称。
+   */
+  async openTerminal(): Promise<string> {
+    return await invoke("terminal_setup_open_terminal");
+  },
 };
