@@ -755,19 +755,37 @@ pub async fn install_yazi(
     state: &SessionState,
     cid: &str,
 ) -> Result<(), String> {
-    // yazi 主程序优先看 which；附带组件 ffmpegthumbnailer / poppler 一并装上。
-    if which_sync("yazi").is_some() {
-        emit_progress(app, cid, "yazi 已安装（which yazi 命中），仍尝试补装 ffmpegthumbnailer / poppler");
-    } else {
-        emit_progress(app, cid, "开始安装 yazi 及预览依赖（ffmpegthumbnailer / poppler）...");
+    // 逐个组件检测：yazi、ffmpegthumbnailer、poppler(pdfinfo 是 poppler 提供的)
+    // 只装真正缺失的，避免对已装且 up-to-date 的包白跑 brew install。
+    let to_install: Vec<&str> = [
+        ("yazi", "yazi"),
+        ("ffmpegthumbnailer", "ffmpegthumbnailer"),
+        ("poppler", "pdfinfo"),
+    ]
+    .into_iter()
+    .filter_map(|(formula, bin)| {
+        if which_sync(bin).is_some() {
+            emit_progress(app, cid, format!("{} 已安装（which {} 命中），跳过", formula, bin));
+            None
+        } else {
+            Some(formula)
+        }
+    })
+    .collect();
+
+    if to_install.is_empty() {
+        emit_progress(app, cid, "Yazi 及预览依赖均已安装，全部跳过");
+        return Ok(());
     }
-    let ok = brew_run(
+
+    emit_progress(
         app,
-        state,
         cid,
-        &["install", "yazi", "ffmpegthumbnailer", "poppler"],
-    )
-    .await?;
+        format!("开始安装缺失的包: {}", to_install.join(", ")),
+    );
+    let mut args = vec!["install"];
+    args.extend(to_install.iter().copied());
+    let ok = brew_run(app, state, cid, &args).await?;
     if !ok {
         emit_error_line(app, cid, "yazi 安装失败");
         return Err("install_yazi_failed".to_string());
