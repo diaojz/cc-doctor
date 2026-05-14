@@ -2543,7 +2543,7 @@
       "notZsh": "Current shell is {{shell}}. This config only works with zsh. Switch manually by running:"
     },
     "font": {
-      "notice": "The default Ghostty config references Maple Mono NF CN; cc-doctor does NOT install it automatically. If absent, Ghostty falls back to the default font. Install manually if you want it: brew install --cask font-maple-mono-nf-cn"
+      "notice": "The default Ghostty config uses JetBrainsMono Nerd Font with Rose Pine Dawn / Catppuccin Mocha themes; cc-doctor does NOT install fonts. If absent, Ghostty falls back to the default. Install manually if you want it: brew install --cask font-jetbrains-mono-nerd-font"
     },
     "danger": {
       "title": "Remove cc-doctor writes",

@@ -44,86 +44,143 @@ const MANAGED_FILE_HEADER: &str = "# cc-doctor managed file";
 // ─── 配置文件内容（gist 原文，首行加 managed 标记） ────────────────────────
 
 const GHOSTTY_CONFIG: &str = r#"# cc-doctor managed file — edits may be overwritten
-# ============================================
-# Ghostty Terminal - Complete Configuration
-# ============================================
+# Ghostty - 性能优化版
+# 充分发挥 GPU 加速和原生性能优势
 
-# --- Typography ---
-font-family = "Maple Mono NF CN"
-font-size = 15
+# ============ 字体配置 ============
+font-family = "JetBrainsMono Nerd Font"
+font-size = 18
+adjust-cell-height = 2
 font-thicken = true
-adjust-cell-height = 6
 
-# --- Theme and Colors ---
-theme = Kanagawa Wave
+# 禁用连字（提升渲染性能）
+# 如需连字效果（!= -> ≠），改为 font-feature = +calt
+font-feature = -calt
 
-# --- Window and Appearance ---
-background-opacity = 1
-macos-titlebar-style = transparent
-window-padding-x = 14
-window-padding-y = 10
-window-save-state = never
-window-width = 80
-window-height = 24
+# ============ 主题配置 ============
+theme = light:Rose Pine Dawn,dark:Catppuccin Mocha
 window-theme = auto
 
-# --- Cursor ---
+# 强制任何前景文本与背景的对比度 >= 4.5（WCAG AA 正常文本标准）
+# 解决 dim/faint 文本（如 Claude Code 的次要灰）在浅色背景下糊到看不清的问题
+# 对所有主题、所有渲染方式（含 dim/palette/truecolor）兜底生效
+minimum-contrast = 4.5
+
+# ============ 窗口配置 ============
+window-padding-x = 10
+window-padding-y = 8
+window-save-state = always
+
+# 窗口同步渲染（减少撕裂，默认已启用）
+window-vsync = true
+
+# 继承工作目录
+window-inherit-working-directory = true
+tab-inherit-working-directory = true
+split-inherit-working-directory = true
+
+# 继承字号
+window-inherit-font-size = true
+
+# ============ macOS 专属优化 ============
+# 标题栏样式（透明，与背景融合）
+macos-titlebar-style = transparent
+
+# Option 键作为 Alt 键
+macos-option-as-alt = true
+
+# 非原生全屏（保持菜单栏可见）
+macos-non-native-fullscreen = visible-menu
+
+# 窗口阴影
+macos-window-shadow = true
+
+# ============ 性能优化核心配置 ============
+# 滚动历史（10 万行，平衡性能与实用性）
+scrollback-limit = 100000
+
+# 字形宽度计算方法（Unicode 标准）
+grapheme-width-method = unicode
+
+# 字体塑形断点（光标处断开，避免连字干扰编辑）
+font-shaping-break = cursor
+
+# Alpha 混合色彩空间（macOS 默认 native = Display P3）
+alpha-blending = native
+
+# ============ 光标与鼠标 ============
 cursor-style = bar
 cursor-style-blink = true
-
-# --- Mouse ---
-mouse-hide-while-typing = true
+mouse-hide-while-typing = false
 copy-on-select = clipboard
 
-# --- Quick Terminal (Quake-style dropdown) ---
-quick-terminal-position = top
-quick-terminal-screen = mouse
-quick-terminal-autohide = true
-quick-terminal-animation-duration = 0.15
+# ============ Shell 集成 ============
+shell-integration = detect
 
-# --- Close behavior ---
-confirm-close-surface = false
+# Shell 集成功能
+# cursor: 光标定位
+# title: 标题更新
+# no-sudo: 禁用 sudo 检测（避免干扰）
+shell-integration-features = cursor,no-sudo,title
 
-# --- Security ---
+# ============ 剪贴板安全 ============
 clipboard-paste-protection = true
 clipboard-paste-bracketed-safe = true
 
-# --- Shell Integration ---
-shell-integration = detect
-shell-integration-features = cursor,sudo,no-title,ssh-env,ssh-terminfo,path
-
-# --- Keybindings ---
-# Tabs
+# ============ 快捷键配置 ============
+# 标签页管理
 keybind = cmd+t=new_tab
+keybind = cmd+w=close_surface
 keybind = cmd+shift+left=previous_tab
 keybind = cmd+shift+right=next_tab
-keybind = cmd+w=close_surface
+keybind = cmd+1=goto_tab:1
+keybind = cmd+2=goto_tab:2
+keybind = cmd+3=goto_tab:3
+keybind = cmd+4=goto_tab:4
+keybind = cmd+5=goto_tab:5
 
-# Splits
-keybind = cmd+d=new_split:right
+# 分屏管理
+keybind = cmd+u=new_split:right
 keybind = cmd+shift+d=new_split:down
-keybind = cmd+alt+left=goto_split:left
-keybind = cmd+alt+right=goto_split:right
-keybind = cmd+alt+up=goto_split:top
-keybind = cmd+alt+down=goto_split:bottom
+keybind = cmd+shift+j=goto_split:left
+keybind = cmd+shift+k=goto_split:right
+keybind = cmd+shift+h=goto_split:top
+keybind = cmd+shift+l=goto_split:bottom
+keybind = cmd+shift+r=equalize_splits
+keybind = cmd+shift+f=toggle_split_zoom
 
-# Font size
+# 字号调整
 keybind = cmd+plus=increase_font_size:1
 keybind = cmd+minus=decrease_font_size:1
 keybind = cmd+zero=reset_font_size
 
-# Quick terminal global hotkey
-keybind = global:ctrl+grave_accent=toggle_quick_terminal
-
-# Splits management
-keybind = cmd+shift+e=equalize_splits
-keybind = cmd+shift+f=toggle_split_zoom
-
-# Reload config
+# 配置重载
 keybind = cmd+shift+comma=reload_config
 
-# --- Performance ---
-scrollback-limit = 25000000
+# 清屏（保留滚动历史）—— 终端层清屏，对 alternate screen 里的 TUI 应用无效
+keybind = cmd+k=clear_screen
+
+# 触发当前应用重绘 —— 向 PTY 发送 Ctrl+L (0x0c, form feed)
+# resize 窗口后内容布局错乱时手动按一下，让 shell / TUI 应用（zsh / vim / Claude Code 等）自己重新渲染
+# 跟 cmd+k 的区别：cmd+k 是 Ghostty 层清屏；这个是把字符传给应用让应用响应
+keybind = cmd+ctrl+l=text:\x0c
+
+# ============ 下拉终端（Quick Terminal）============
+keybind = global:cmd+backquote=toggle_quick_terminal
+quick-terminal-position = top
+quick-terminal-screen = main
+quick-terminal-size = 100%
+quick-terminal-autohide = true
+quick-terminal-animation-duration = 0.15
+
+# ============ 说明 ============
+# 性能优化要点：
+# 1. Ghostty 默认使用 Metal GPU 渲染（macOS），无需额外配置
+# 2. window-vsync = true 减少画面撕裂和 GPU 负载
+# 3. 滚动历史设为 10 万行（平衡性能与实用性）
+# 4. 禁用连字（font-feature = -calt）提升渲染性能
+# 5. 使用透明标题栏与背景融合，视觉更统一
+# 6. 启用工作目录和字号继承，提升使用体验
 "#;
 
 const YAZI_TOML: &str = r#"# cc-doctor managed file — edits may be overwritten
