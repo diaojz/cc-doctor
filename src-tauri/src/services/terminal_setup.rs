@@ -520,20 +520,25 @@ fn atomic_write(dest: &Path, content: &str) -> Result<(), String> {
 }
 
 /// 如果目标文件存在，备份为 `<path>.bak.<ts>`，返回备份路径。
+///
+/// 关键：如果文件**已经是 cc-doctor 托管的**（首行 `# cc-doctor managed file`），
+/// 跳过备份——否则用户反复点安装会堆出一串「备份自己的备份」，污染备份列表
+/// 又掩盖了真正的原始配置。
 fn backup_if_exists(path: &Path) -> Result<Option<PathBuf>, String> {
     if !path.exists() {
         return Ok(None);
     }
-    let bak = path.with_extension(format!(
-        "{}.bak.{}",
-        path.extension().and_then(|s| s.to_str()).unwrap_or(""),
-        unix_ts()
-    ));
-    // 上面的 with_extension 在没有原扩展名时会产生 `.bak.<ts>`，但路径里
-    // 可能出现 `..bak.<ts>`，统一改用 file_name 拼接更稳。
+    if file_managed_by_cc_doctor(path) {
+        // 当前文件就是上次我们写入的版本，不算「用户的原始数据」，无需保留
+        return Ok(None);
+    }
     let bak = match path.file_name().and_then(|s| s.to_str()) {
         Some(name) => path.with_file_name(format!("{}.bak.{}", name, unix_ts())),
-        None => bak,
+        None => path.with_extension(format!(
+            "{}.bak.{}",
+            path.extension().and_then(|s| s.to_str()).unwrap_or(""),
+            unix_ts()
+        )),
     };
     fs::copy(path, &bak)
         .map_err(|e| format!("备份 {} -> {} 失败: {}", path.display(), bak.display(), e))?;
