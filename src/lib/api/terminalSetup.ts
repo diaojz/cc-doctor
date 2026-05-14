@@ -4,7 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type Component =
   | "ghostty"
-  | "maple-font"
   | "zoxide"
   | "yazi"
   | "oh-my-zsh"

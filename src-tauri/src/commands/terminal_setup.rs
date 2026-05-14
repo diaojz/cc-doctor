@@ -75,10 +75,7 @@ pub async fn terminal_setup_install(
     let needs_brew = components.iter().any(|c| {
         matches!(
             c,
-            Component::Ghostty
-                | Component::MapleFont
-                | Component::Zoxide
-                | Component::Yazi
+            Component::Ghostty | Component::Zoxide | Component::Yazi
         )
     });
 
@@ -96,7 +93,6 @@ pub async fn terminal_setup_install(
     // 依赖顺序：brew 系（Ghostty/字体/zoxide/yazi）→ oh-my-zsh → 插件。
     let order = [
         Component::Ghostty,
-        Component::MapleFont,
         Component::Zoxide,
         Component::Yazi,
         Component::OhMyZsh,
@@ -231,7 +227,6 @@ async fn run_one_component(
 ) -> Result<bool, String> {
     match comp {
         Component::Ghostty => terminal_setup::install_ghostty(app, state, cid).await.map(|_| false),
-        Component::MapleFont => terminal_setup::install_maple_font(app, state, cid).await.map(|_| false),
         Component::Zoxide => terminal_setup::install_zoxide(app, state, cid).await.map(|_| false),
         Component::Yazi => terminal_setup::install_yazi(app, state, cid).await.map(|_| false),
         Component::OhMyZsh => terminal_setup::install_oh_my_zsh(app, state, cid).await.map(|_| false),

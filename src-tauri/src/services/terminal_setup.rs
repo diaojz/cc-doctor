@@ -36,8 +36,10 @@ pub const ZSHRC_MARKER_END: &str = "# <<< cc-doctor terminal setup <<<";
 /// 独立配置文件的首行标记，用于 detect 判断是否由 cc-doctor 托管。
 const MANAGED_FILE_HEADER: &str = "# cc-doctor managed file";
 
-/// Maple Mono NF CN 的 brew cask 名（用户已确认存在于 brew cask 主仓库）。
-const MAPLE_FONT_CASK: &str = "font-maple-mono-nf-cn";
+// Maple Mono NF CN 字体不再作为可安装组件由 cc-doctor 自动安装：
+// 多次实测下载常被中断、留下 .incomplete lock，且字体不是配置生效的强依赖
+// （Ghostty 找不到时会回退到默认字体）。用户可自行 `brew install --cask
+// font-maple-mono-nf-cn` 安装。
 
 // ─── 配置文件内容（gist 原文，首行加 managed 标记） ────────────────────────
 
@@ -305,7 +307,6 @@ eval "$(zoxide init zsh)"
 #[serde(rename_all = "kebab-case")]
 pub enum Component {
     Ghostty,
-    MapleFont,
     Zoxide,
     Yazi,
     OhMyZsh,
@@ -407,29 +408,6 @@ fn detect_ghostty_app() -> Option<String> {
         .map(|p| p.display().to_string())
 }
 
-/// 兜底探测 Maple Mono NF CN 字体文件：扫描 user/system Fonts 目录，匹配
-/// 文件名同时含 "MapleMono"、"NF"、"CN"（大小写不敏感）。命中即认为已安装。
-fn detect_maple_font_file() -> Option<String> {
-    let dirs = [
-        home_dir().join("Library/Fonts"),
-        PathBuf::from("/Library/Fonts"),
-    ];
-    for dir in dirs {
-        let Ok(entries) = fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let Some(name) = entry.file_name().to_str().map(|s| s.to_lowercase()) else {
-                continue;
-            };
-            if name.contains("maplemono") && name.contains("nf") && name.contains("cn") {
-                return Some(entry.path().display().to_string());
-            }
-        }
-    }
-    None
-}
-
 /// 文件首行是否以 `# cc-doctor` 开头。
 fn file_managed_by_cc_doctor(path: &Path) -> bool {
     let Ok(content) = fs::read_to_string(path) else {
@@ -504,18 +482,6 @@ pub fn detect() -> DetectReport {
         },
     };
 
-    // Maple 字体：brew cask 优先，user/system Fonts 目录里有匹配文件也算数。
-    let maple_font_file = detect_maple_font_file();
-    let maple_via_brew = brew_installed && brew_cask_installed_sync(MAPLE_FONT_CASK);
-    let maple = ComponentStatus {
-        component: Component::MapleFont,
-        installed: maple_via_brew || maple_font_file.is_some(),
-        detail: if maple_via_brew {
-            Some("brew cask".to_string())
-        } else {
-            maple_font_file
-        },
-    };
     let zoxide_path = which_sync("zoxide");
     let zoxide = ComponentStatus {
         component: Component::Zoxide,
@@ -570,7 +536,7 @@ pub fn detect() -> DetectReport {
         brew_path,
         current_shell,
         is_zsh,
-        components: vec![ghostty, maple, zoxide, yazi, oh_my_zsh, plugins],
+        components: vec![ghostty, zoxide, yazi, oh_my_zsh, plugins],
         zshrc_has_marker,
         configs,
     }
@@ -678,33 +644,6 @@ pub async fn install_ghostty(
         return Ok(());
     }
     brew_install_cask(app, state, cid, "ghostty", "Ghostty").await
-}
-
-pub async fn install_maple_font(
-    app: &AppHandle,
-    state: &SessionState,
-    cid: &str,
-) -> Result<(), String> {
-    // 同 install_ghostty：brew cask 或文件系统命中都视为已装
-    if brew_cask_installed_sync(MAPLE_FONT_CASK) {
-        emit_progress(app, cid, "Maple Mono NF CN 字体已安装（brew cask），跳过");
-        return Ok(());
-    }
-    if let Some(p) = detect_maple_font_file() {
-        emit_progress(
-            app,
-            cid,
-            format!("Maple Mono NF CN 字体已安装（{}），跳过", p),
-        );
-        return Ok(());
-    }
-    brew_install_cask(app, state, cid, MAPLE_FONT_CASK, "Maple Mono NF CN 字体").await?;
-    emit_progress(
-        app,
-        cid,
-        "提示：字体安装后需要重启 Ghostty 才会生效。",
-    );
-    Ok(())
 }
 
 pub async fn install_zoxide(

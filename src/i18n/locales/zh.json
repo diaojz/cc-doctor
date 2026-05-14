@@ -2543,7 +2543,7 @@
       "notZsh": "当前 shell 是 {{shell}}，本配置只在 zsh 下生效。可手动执行："
     },
     "font": {
-      "notice": "Ghostty 配置引用了 Maple Mono NF CN 字体；cc-doctor 会通过 Homebrew Cask 自动安装到系统。如不需要请取消勾选，Ghostty 会回退到默认字体。安装后需要重启 Ghostty 才会生效。"
+      "notice": "Ghostty 默认配置引用 Maple Mono NF CN 字体；cc-doctor 不再自动安装它。如果你的系统没装，Ghostty 会自动回退到默认字体。需要的话可自行执行：brew install --cask font-maple-mono-nf-cn"
     },
     "danger": {
       "title": "移除 cc-doctor 写入",
@@ -2555,8 +2555,6 @@
     "components": {
       "ghostty": "Ghostty",
       "ghosttyDesc": "GPU 加速终端模拟器",
-      "mapleFont": "Maple Mono NF CN 字体",
-      "mapleFontDesc": "带 Nerd Font 图标的中英文等宽字体",
       "zoxide": "Zoxide",
       "zoxideDesc": "智能目录跳转（z 命令）",
       "yazi": "Yazi",

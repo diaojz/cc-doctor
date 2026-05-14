@@ -44,11 +44,6 @@ const COMPONENT_LIST: ComponentMeta[] = [
     descKey: "terminalSetup.components.ghosttyDesc",
   },
   {
-    id: "maple-font",
-    nameKey: "terminalSetup.components.mapleFont",
-    descKey: "terminalSetup.components.mapleFontDesc",
-  },
-  {
     id: "zoxide",
     nameKey: "terminalSetup.components.zoxide",
     descKey: "terminalSetup.components.zoxideDesc",
@@ -227,8 +222,6 @@ function TerminalSetupPanelInner() {
     });
   };
 
-  const mapleFontSelected = selectedComponents.has("maple-font");
-
   // ── 渲染 ──
 
   return (
@@ -311,17 +304,15 @@ function TerminalSetupPanelInner() {
           </div>
         )}
 
-        {/* 字体提醒（勾选 maple-font 时显示） */}
-        {mapleFontSelected && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-900/20 px-4 py-3">
-            <div className="flex items-start gap-3">
-              <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                {t("terminalSetup.font.notice")}
-              </p>
-            </div>
+        {/* 字体说明：cc-doctor 不再自动装字体，Ghostty 找不到字体时会自动回退 */}
+        <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-900/20 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              {t("terminalSetup.font.notice")}
+            </p>
           </div>
-        )}
+        </div>
 
         {/* 组件列表 */}
         <div className="rounded-lg border border-border bg-card overflow-hidden">

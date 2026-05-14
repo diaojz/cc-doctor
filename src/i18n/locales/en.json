@@ -2543,7 +2543,7 @@
       "notZsh": "Current shell is {{shell}}. This config only works with zsh. Switch manually by running:"
     },
     "font": {
-      "notice": "The Ghostty config references Maple Mono NF CN font; cc-doctor will install it automatically via Homebrew Cask. Uncheck to skip — Ghostty will fall back to the default font. A Ghostty restart is required after installation."
+      "notice": "The default Ghostty config references Maple Mono NF CN; cc-doctor does NOT install it automatically. If absent, Ghostty falls back to the default font. Install manually if you want it: brew install --cask font-maple-mono-nf-cn"
     },
     "danger": {
       "title": "Remove cc-doctor writes",
@@ -2555,8 +2555,6 @@
     "components": {
       "ghostty": "Ghostty",
       "ghosttyDesc": "GPU-accelerated terminal emulator",
-      "mapleFont": "Maple Mono NF CN Font",
-      "mapleFontDesc": "Monospace font with Nerd Font icons for CJK",
       "zoxide": "Zoxide",
       "zoxideDesc": "Smart directory jump (z command)",
       "yazi": "Yazi",
