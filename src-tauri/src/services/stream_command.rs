@@ -208,17 +208,21 @@ pub async fn stream_command(
     };
     emit_progress(app, channel_id, display);
 
-    let mut child = Command::new(program)
-        .args(args)
+    let mut cmd = Command::new(program);
+    cmd.args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(Stdio::null())
-        .spawn()
-        .map_err(|e| {
-            let msg = format!("spawn 失败 ({}): {}", program, e);
-            emit_error_line(app, channel_id, msg.clone());
-            msg
-        })?;
+        .stdin(Stdio::null());
+    // Unix 下让子进程自建进程组（pgid = pid），取消时可一次 killpg 杀光
+    // 子孙进程，避免 brew/git/curl 孙进程持有 pipe 导致 stdout 读循环卡死。
+    #[cfg(unix)]
+    cmd.process_group(0);
+    let mut child = cmd.spawn().map_err(|e| {
+        let msg = format!("spawn 失败 ({}): {}", program, e);
+        emit_error_line(app, channel_id, msg.clone());
+        msg
+    })?;
+    let child_pid = child.id();
 
     let stdout = child
         .stdout
@@ -278,14 +282,14 @@ pub async fn stream_command(
     tokio::pin!(notified);
 
     let wait_result = if state.cancel_token.load(Ordering::SeqCst) {
-        let _ = child.start_kill();
+        kill_group(&mut child, child_pid).await;
         child.wait().await
     } else {
         tokio::select! {
             res = child.wait() => res,
             _ = &mut notified => {
                 emit_progress(app, channel_id, "[收到取消信号，正在终止子进程...]");
-                let _ = child.start_kill();
+                kill_group(&mut child, child_pid).await;
                 child.wait().await
             }
         }
@@ -315,6 +319,37 @@ pub async fn stream_command(
                 Err(msg)
             }
         }
+    }
+}
+
+/// 终止子进程及其整个进程组。Unix 上先 SIGTERM 整组让 curl/git/brew 子孙
+/// 进程优雅退出，短暂等待后兜底 SIGKILL；Windows 上仍只能 kill 直接子进程。
+async fn kill_group(child: &mut tokio::process::Child, pid: Option<u32>) {
+    #[cfg(unix)]
+    {
+        if let Some(pid) = pid {
+            // -pid 表示对整个进程组发信号（自建组时 pgid == pid）
+            let neg = format!("-{}", pid);
+            let _ = Command::new("/bin/kill")
+                .arg("-TERM")
+                .arg(&neg)
+                .output()
+                .await;
+            // 给孩子和孙辈一点时间善后；不能太长，否则取消按钮看起来无响应。
+            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+            let _ = Command::new("/bin/kill")
+                .arg("-KILL")
+                .arg(&neg)
+                .output()
+                .await;
+        }
+        // 兜底：再戳一下直接子进程，万一它脱离了进程组。
+        let _ = child.start_kill();
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = pid; // 抑制 unused warning
+        let _ = child.start_kill();
     }
 }
 
