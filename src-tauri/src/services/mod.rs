@@ -22,6 +22,8 @@ pub mod speedtest;
 pub mod stream_check;
 pub mod stream_command;
 pub mod subscription;
+#[cfg(target_os = "macos")]
+pub mod terminal_setup;
 pub mod uninstall;
 pub mod usage_cache;
 pub mod usage_stats;

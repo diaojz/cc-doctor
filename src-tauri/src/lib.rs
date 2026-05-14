@@ -1173,6 +1173,13 @@ pub fn run() {
             commands::preview_brew_migration,
             #[cfg(target_os = "macos")]
             commands::migrate_brew_to_native,
+            // Terminal setup（macOS 专属：Ghostty + 字体 + Zoxide + Yazi + Oh-My-Zsh 一键美化）
+            #[cfg(target_os = "macos")]
+            commands::terminal_setup_detect,
+            #[cfg(target_os = "macos")]
+            commands::terminal_setup_install,
+            #[cfg(target_os = "macos")]
+            commands::terminal_setup_remove,
             // Skill management (v3.10.0+ unified)
             commands::get_installed_skills,
             commands::get_skill_backups,

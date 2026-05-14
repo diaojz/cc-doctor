@@ -68,3 +68,9 @@ pub use lightweight::*;
 pub use usage::*;
 pub use webdav_sync::*;
 pub use workspace::*;
+
+#[cfg(target_os = "macos")]
+mod terminal_setup;
+
+#[cfg(target_os = "macos")]
+pub use terminal_setup::*;
