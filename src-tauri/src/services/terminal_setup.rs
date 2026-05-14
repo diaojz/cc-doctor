@@ -58,7 +58,7 @@ font-thicken = true
 font-feature = -calt
 
 # ============ 主题配置 ============
-theme = light:Rose Pine Dawn,dark:Catppuccin Mocha
+theme = light:GitHub Light Default,dark:Catppuccin Mocha
 window-theme = auto
 
 # 强制任何前景文本与背景的对比度 >= 4.5（WCAG AA 正常文本标准）

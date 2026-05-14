@@ -2560,7 +2560,7 @@
       "notZsh": "現在のシェルは {{shell}} です。この設定は zsh でのみ機能します。手動で切り替えるには次を実行してください："
     },
     "font": {
-      "notice": "Ghostty のデフォルト設定は JetBrainsMono Nerd Font と Rose Pine Dawn / Catppuccin Mocha テーマを使用します。cc-doctor はフォントを自動インストールしません。無い場合 Ghostty はデフォルトフォントにフォールバックします。必要なら手動で：brew install --cask font-jetbrains-mono-nerd-font"
+      "notice": "Ghostty のデフォルト設定は JetBrainsMono Nerd Font と GitHub Light Default / Catppuccin Mocha テーマを使用します。cc-doctor はフォントを自動インストールしません。無い場合 Ghostty はデフォルトフォントにフォールバックします。必要なら手動で：brew install --cask font-jetbrains-mono-nerd-font"
     },
     "danger": {
       "title": "cc-doctor の書き込みを削除",

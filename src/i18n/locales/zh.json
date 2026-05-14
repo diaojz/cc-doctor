@@ -2543,7 +2543,7 @@
       "notZsh": "当前 shell 是 {{shell}}，本配置只在 zsh 下生效。可手动执行："
     },
     "font": {
-      "notice": "Ghostty 默认配置引用 JetBrainsMono Nerd Font 与 Rose Pine Dawn / Catppuccin Mocha 主题；cc-doctor 不自动装字体。系统没装时 Ghostty 会回退到默认字体。需要的话可自行执行：brew install --cask font-jetbrains-mono-nerd-font"
+      "notice": "Ghostty 默认配置引用 JetBrainsMono Nerd Font 与 GitHub Light Default / Catppuccin Mocha 主题；cc-doctor 不自动装字体。系统没装时 Ghostty 会回退到默认字体。需要的话可自行执行：brew install --cask font-jetbrains-mono-nerd-font"
     },
     "danger": {
       "title": "移除 cc-doctor 写入",
