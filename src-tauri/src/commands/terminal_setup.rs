@@ -80,6 +80,10 @@ pub async fn terminal_setup_install(
     });
 
     if needs_brew {
+        // 先清掉任何 stale brew lock（无真实 brew 进程时才清），避免上次
+        // 中断/取消遗留的孤儿 lock 阻塞本次安装。
+        terminal_setup::cleanup_stale_brew_locks(&app, cid);
+
         if let Err(e) = terminal_setup::install_brew(&app, &state, cid).await {
             if e == "cancelled" {
                 cancelled = true;

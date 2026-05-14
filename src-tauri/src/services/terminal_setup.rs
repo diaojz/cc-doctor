@@ -396,6 +396,90 @@ fn brew_cask_installed_sync(cask: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 返回当前系统中真实运行的 brew 安装/更新进程数。匹配模式刻意收紧到
+/// `brew install` / `brew update` / `brew vendor-install` / `brew cleanup`，
+/// 避免误伤把 brew 路径写进 env 的进程（如 Cursor / VSCode 这类）。
+fn count_running_brew_processes() -> usize {
+    let Ok(out) = StdCommand::new("pgrep")
+        .args(["-f", r"brew (install|update|vendor-install|cleanup)"])
+        .output()
+    else {
+        return 0;
+    };
+    if !out.status.success() {
+        return 0;
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .count()
+}
+
+/// 通过 `which brew` 反推 brew 的 prefix 目录（Intel: /usr/local, ARM: /opt/homebrew）。
+fn brew_prefix_dir() -> Option<PathBuf> {
+    let bin_path = PathBuf::from(which_sync("brew")?);
+    bin_path.parent()?.parent().map(PathBuf::from)
+}
+
+/// 清理 stale brew lock：当系统中**没有**真实的 brew install/update/vendor/cleanup
+/// 进程时，清掉 locks 目录下的全局 lock 文件（update / cleanup / vendor-install-*）
+/// 以及 downloads 目录下的 `.incomplete*` / `.lock` 残留。
+///
+/// 关键安全约束：
+/// 1. 必须先确认无运行中的 brew 进程，否则什么都不做（避免误删活动 lock）。
+/// 2. 只清「全局」lock，formula/cask 细粒度 lock 留给 brew 自愈。
+pub fn cleanup_stale_brew_locks(app: &AppHandle, cid: &str) {
+    if count_running_brew_processes() > 0 {
+        emit_progress(app, cid, "检测到正在运行的 brew 进程，跳过 stale lock 预清理");
+        return;
+    }
+    let Some(prefix) = brew_prefix_dir() else { return };
+
+    let mut cleaned: Vec<String> = Vec::new();
+
+    // 1) 清 var/homebrew/locks/ 下的全局 lock
+    let locks_dir = prefix.join("var/homebrew/locks");
+    if let Ok(entries) = fs::read_dir(&locks_dir) {
+        for entry in entries.flatten() {
+            let Some(name) = entry.file_name().to_str().map(String::from) else { continue };
+            let is_global = name == "update"
+                || name == "cleanup"
+                || name.starts_with("vendor-install-");
+            if is_global && fs::remove_file(entry.path()).is_ok() {
+                cleaned.push(name);
+            }
+        }
+    }
+
+    // 2) 清 ~/Library/Caches/Homebrew/downloads/ 下的 .incomplete* / .lock
+    let downloads = home_dir().join("Library/Caches/Homebrew/downloads");
+    if let Ok(entries) = fs::read_dir(&downloads) {
+        for entry in entries.flatten() {
+            let Some(name) = entry.file_name().to_str().map(String::from) else { continue };
+            let stale = name.ends_with(".incomplete")
+                || name.ends_with(".incomplete.download.lock")
+                || name.ends_with(".lock");
+            if stale && fs::remove_file(entry.path()).is_ok() {
+                cleaned.push(name);
+            }
+        }
+    }
+
+    if !cleaned.is_empty() {
+        let preview = cleaned.iter().take(5).cloned().collect::<Vec<_>>().join(", ");
+        let suffix = if cleaned.len() > 5 {
+            format!(" ... 共 {} 项", cleaned.len())
+        } else {
+            String::new()
+        };
+        emit_progress(
+            app,
+            cid,
+            format!("已预清理 {} 个 stale brew lock：{}{}", cleaned.len(), preview, suffix),
+        );
+    }
+}
+
 /// 兜底探测 Ghostty.app：用户可能直接装 dmg 到 /Applications 而非走 brew cask。
 fn detect_ghostty_app() -> Option<String> {
     let candidates = [
@@ -581,6 +665,23 @@ pub async fn install_brew(
     Ok(())
 }
 
+/// 用 `bash -c` 包一层执行 brew 命令，注入 HOMEBREW_NO_AUTO_UPDATE=1
+/// 跳过 install 前的 auto-update。这是 brew 推荐的非交互式安装实践，能
+/// 避开 `brew update` 与并发 install 之间的 lock 冲突。
+async fn brew_run(
+    app: &AppHandle,
+    state: &SessionState,
+    cid: &str,
+    brew_args: &[&str],
+) -> Result<bool, String> {
+    let cmd = format!("HOMEBREW_NO_AUTO_UPDATE=1 brew {}", brew_args.join(" "));
+    let outcome = stream_command(app, state, cid, "bash", &["-c", &cmd]).await?;
+    if outcome.cancelled {
+        return Err("cancelled".to_string());
+    }
+    Ok(outcome.success)
+}
+
 async fn brew_install_cask(
     app: &AppHandle,
     state: &SessionState,
@@ -593,11 +694,8 @@ async fn brew_install_cask(
         return Ok(());
     }
     emit_progress(app, cid, format!("开始安装 {}（cask: {}）...", human_name, cask));
-    let outcome = stream_command(app, state, cid, "brew", &["install", "--cask", cask]).await?;
-    if outcome.cancelled {
-        return Err("cancelled".to_string());
-    }
-    if !outcome.success {
+    let ok = brew_run(app, state, cid, &["install", "--cask", cask]).await?;
+    if !ok {
         emit_error_line(app, cid, format!("{} 安装失败", human_name));
         return Err(format!("install_{}_failed", cask));
     }
@@ -618,11 +716,8 @@ async fn brew_install_formula(
         }
     }
     emit_progress(app, cid, format!("开始安装 {}（brew install）...", formula));
-    let outcome = stream_command(app, state, cid, "brew", &["install", formula]).await?;
-    if outcome.cancelled {
-        return Err("cancelled".to_string());
-    }
-    if !outcome.success {
+    let ok = brew_run(app, state, cid, &["install", formula]).await?;
+    if !ok {
         emit_error_line(app, cid, format!("{} 安装失败", formula));
         return Err(format!("install_{}_failed", formula));
     }
@@ -666,18 +761,14 @@ pub async fn install_yazi(
     } else {
         emit_progress(app, cid, "开始安装 yazi 及预览依赖（ffmpegthumbnailer / poppler）...");
     }
-    let outcome = stream_command(
+    let ok = brew_run(
         app,
         state,
         cid,
-        "brew",
         &["install", "yazi", "ffmpegthumbnailer", "poppler"],
     )
     .await?;
-    if outcome.cancelled {
-        return Err("cancelled".to_string());
-    }
-    if !outcome.success {
+    if !ok {
         emit_error_line(app, cid, "yazi 安装失败");
         return Err("install_yazi_failed".to_string());
     }
