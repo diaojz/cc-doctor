@@ -668,6 +668,15 @@ pub async fn install_ghostty(
     state: &SessionState,
     cid: &str,
 ) -> Result<(), String> {
+    // 跳过条件与 detect 保持一致：brew cask 已记录 **或** /Applications 里已有 .app
+    if brew_cask_installed_sync("ghostty") {
+        emit_progress(app, cid, "Ghostty 已安装（brew cask），跳过");
+        return Ok(());
+    }
+    if let Some(p) = detect_ghostty_app() {
+        emit_progress(app, cid, format!("Ghostty 已安装（{}），跳过", p));
+        return Ok(());
+    }
     brew_install_cask(app, state, cid, "ghostty", "Ghostty").await
 }
 
@@ -676,6 +685,19 @@ pub async fn install_maple_font(
     state: &SessionState,
     cid: &str,
 ) -> Result<(), String> {
+    // 同 install_ghostty：brew cask 或文件系统命中都视为已装
+    if brew_cask_installed_sync(MAPLE_FONT_CASK) {
+        emit_progress(app, cid, "Maple Mono NF CN 字体已安装（brew cask），跳过");
+        return Ok(());
+    }
+    if let Some(p) = detect_maple_font_file() {
+        emit_progress(
+            app,
+            cid,
+            format!("Maple Mono NF CN 字体已安装（{}），跳过", p),
+        );
+        return Ok(());
+    }
     brew_install_cask(app, state, cid, MAPLE_FONT_CASK, "Maple Mono NF CN 字体").await?;
     emit_progress(
         app,
