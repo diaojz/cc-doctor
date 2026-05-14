@@ -2520,6 +2520,53 @@
     "suggestedDefaults": "应用建议默认配置",
     "suggestedDefaultsHint": "使用此预设推荐的默认模型配置"
   },
+  "terminalSetup": {
+    "title": "终端美化",
+    "menuTitle": "终端美化",
+    "subtitle": "一键安装 Ghostty + Zoxide + Yazi + Oh My Zsh 等现代终端工具",
+    "macOnly": "终端美化仅支持 macOS",
+    "detect": "重新检测",
+    "installed": "已安装",
+    "notInstalled": "未安装",
+    "install": "开始安装",
+    "installing": "安装中...",
+    "cancel": "取消",
+    "completed": "安装完成",
+    "sourceHint": "请重启终端或执行 source ~/.zshrc 让配置生效。",
+    "writeConfigs": "同时写入配置文件 (Ghostty / Yazi / .zshrc)",
+    "writeConfigs.hint": "已存在的配置文件会先备份为 .bak.<时间戳>。.zshrc 用标记块包裹，二次写入只替换块内内容，不动其他配置。",
+    "brew": {
+      "ready": "Homebrew 已就绪",
+      "missing": "未检测到 Homebrew。勾选组件后点安装会自动通过官方 install.sh 安装。"
+    },
+    "shell": {
+      "notZsh": "当前 shell 是 {{shell}}，本配置只在 zsh 下生效。可手动执行："
+    },
+    "font": {
+      "notice": "Ghostty 配置引用了 Maple Mono NF CN 字体；cc-doctor 会通过 Homebrew Cask 自动安装到系统。如不需要请取消勾选，Ghostty 会回退到默认字体。安装后需要重启 Ghostty 才会生效。"
+    },
+    "danger": {
+      "title": "移除 cc-doctor 写入",
+      "desc": "仅删除 .zshrc 中 cc-doctor 标记块内的内容；不卸载 brew 包，不删 ~/.oh-my-zsh 与独立配置文件。",
+      "confirm": "确认移除",
+      "confirmTitle": "确认移除 cc-doctor 终端配置块？",
+      "confirmDesc": "这会从 ~/.zshrc 删除标记块内的内容。其他内容不动。"
+    },
+    "components": {
+      "ghostty": "Ghostty",
+      "ghosttyDesc": "GPU 加速终端模拟器",
+      "mapleFont": "Maple Mono NF CN 字体",
+      "mapleFontDesc": "带 Nerd Font 图标的中英文等宽字体",
+      "zoxide": "Zoxide",
+      "zoxideDesc": "智能目录跳转（z 命令）",
+      "yazi": "Yazi",
+      "yaziDesc": "终端文件管理器（含预览依赖）",
+      "ohMyZsh": "Oh My Zsh",
+      "ohMyZshDesc": "zsh 配置框架",
+      "zshPlugins": "Zsh 插件",
+      "zshPluginsDesc": "语法高亮 + 自动建议"
+    }
+  },
   "subscription": {
     "title": "订阅额度",
     "fiveHour": "5小时",

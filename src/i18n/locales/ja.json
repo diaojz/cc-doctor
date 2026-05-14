@@ -2537,6 +2537,53 @@
     "suggestedDefaults": "推奨デフォルト設定を適用",
     "suggestedDefaultsHint": "このプリセットの推奨デフォルトモデル設定を使用します"
   },
+  "terminalSetup": {
+    "title": "ターミナル美化",
+    "menuTitle": "ターミナル美化",
+    "subtitle": "Ghostty + Zoxide + Yazi + Oh My Zsh などをワンクリックでインストール",
+    "macOnly": "ターミナル美化は macOS のみサポートされています",
+    "detect": "再検出",
+    "installed": "インストール済み",
+    "notInstalled": "未インストール",
+    "install": "インストール開始",
+    "installing": "インストール中...",
+    "cancel": "キャンセル",
+    "completed": "インストール完了",
+    "sourceHint": "ターミナルを再起動するか source ~/.zshrc を実行して変更を反映してください。",
+    "writeConfigs": "設定ファイルも書き込む（Ghostty / Yazi / .zshrc）",
+    "writeConfigs.hint": "既存の設定ファイルは .bak.<タイムスタンプ> にバックアップされます。.zshrc はマーカーブロックで囲まれ、再実行時はブロック内のみ更新されます。",
+    "brew": {
+      "ready": "Homebrew は準備完了です",
+      "missing": "Homebrew が見つかりません。コンポーネントを選択してインストールを押すと、公式 install.sh で自動インストールされます。"
+    },
+    "shell": {
+      "notZsh": "現在のシェルは {{shell}} です。この設定は zsh でのみ機能します。手動で切り替えるには次を実行してください："
+    },
+    "font": {
+      "notice": "Ghostty 設定は Maple Mono NF CN フォントを参照しています。cc-doctor が Homebrew Cask 経由で自動インストールします。不要な場合はチェックを外してください。インストール後は Ghostty の再起動が必要です。"
+    },
+    "danger": {
+      "title": "cc-doctor の書き込みを削除",
+      "desc": "~/.zshrc の cc-doctor マーカーブロック内のコンテンツのみを削除します。brew パッケージのアンインストールや ~/.oh-my-zsh・独立した設定ファイルの削除は行いません。",
+      "confirm": "削除を確認",
+      "confirmTitle": "cc-doctor ターミナル設定ブロックを削除しますか？",
+      "confirmDesc": "~/.zshrc からマーカーブロックの内容を削除します。それ以外はそのままです。"
+    },
+    "components": {
+      "ghostty": "Ghostty",
+      "ghosttyDesc": "GPU アクセラレーション対応ターミナルエミュレーター",
+      "mapleFont": "Maple Mono NF CN フォント",
+      "mapleFontDesc": "Nerd Font アイコン付き日中英等幅フォント",
+      "zoxide": "Zoxide",
+      "zoxideDesc": "スマートディレクトリジャンプ（z コマンド）",
+      "yazi": "Yazi",
+      "yaziDesc": "ターミナルファイルマネージャー（プレビュー依存込み）",
+      "ohMyZsh": "Oh My Zsh",
+      "ohMyZshDesc": "zsh 設定フレームワーク",
+      "zshPlugins": "Zsh プラグイン",
+      "zshPluginsDesc": "シンタックスハイライト + 自動補完"
+    }
+  },
   "subscription": {
     "title": "サブスクリプションクォータ",
     "fiveHour": "5時間",

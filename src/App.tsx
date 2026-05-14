@@ -27,6 +27,7 @@ import {
   Shield,
   Cpu,
   LayoutDashboard,
+  Sparkles,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -51,6 +52,7 @@ import { extractErrorMessage } from "@/utils/errorUtils";
 import { isTextEditableTarget } from "@/utils/domUtils";
 import { cn } from "@/lib/utils";
 import {
+  isMac,
   isWindows,
   isLinux,
   DRAG_REGION_ATTR,
@@ -88,6 +90,7 @@ import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
+import { TerminalSetupPanel } from "@/components/terminal/TerminalSetupPanel";
 
 type View =
   | "providers"
@@ -103,7 +106,8 @@ type View =
   | "openclawEnv"
   | "openclawTools"
   | "openclawAgents"
-  | "hermesMemory";
+  | "hermesMemory"
+  | "terminalSetup";
 
 interface WebDavSyncStatusUpdatedPayload {
   source?: string;
@@ -148,6 +152,7 @@ const VALID_VIEWS: View[] = [
   "openclawTools",
   "openclawAgents",
   "hermesMemory",
+  "terminalSetup",
 ];
 
 const getInitialView = (): View => {
@@ -955,6 +960,8 @@ function App() {
           return <ToolsPanel />;
         case "openclawAgents":
           return <AgentsDefaultsPanel />;
+        case "terminalSetup":
+          return <TerminalSetupPanel />;
         default:
           return (
             <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -1175,6 +1182,8 @@ function App() {
                   {currentView === "openclawAgents" &&
                     t("openclaw.agents.title")}
                   {currentView === "hermesMemory" && t("hermes.memory.title")}
+                  {currentView === "terminalSetup" &&
+                    t("terminalSetup.title")}
                 </h1>
               </div>
             ) : (
@@ -1197,6 +1206,17 @@ function App() {
                     一键拯救你的 Claude Code
                   </span>
                 </div>
+                {isMac() && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCurrentView("terminalSetup")}
+                    title={t("terminalSetup.menuTitle")}
+                    className="hover:bg-black/5 dark:hover:bg-white/5"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
