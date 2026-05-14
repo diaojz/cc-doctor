@@ -395,6 +395,41 @@ fn brew_cask_installed_sync(cask: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 兜底探测 Ghostty.app：用户可能直接装 dmg 到 /Applications 而非走 brew cask。
+fn detect_ghostty_app() -> Option<String> {
+    let candidates = [
+        PathBuf::from("/Applications/Ghostty.app"),
+        home_dir().join("Applications/Ghostty.app"),
+    ];
+    candidates
+        .into_iter()
+        .find(|p| p.is_dir())
+        .map(|p| p.display().to_string())
+}
+
+/// 兜底探测 Maple Mono NF CN 字体文件：扫描 user/system Fonts 目录，匹配
+/// 文件名同时含 "MapleMono"、"NF"、"CN"（大小写不敏感）。命中即认为已安装。
+fn detect_maple_font_file() -> Option<String> {
+    let dirs = [
+        home_dir().join("Library/Fonts"),
+        PathBuf::from("/Library/Fonts"),
+    ];
+    for dir in dirs {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Some(name) = entry.file_name().to_str().map(|s| s.to_lowercase()) else {
+                continue;
+            };
+            if name.contains("maplemono") && name.contains("nf") && name.contains("cn") {
+                return Some(entry.path().display().to_string());
+            }
+        }
+    }
+    None
+}
+
 /// 文件首行是否以 `# cc-doctor` 开头。
 fn file_managed_by_cc_doctor(path: &Path) -> bool {
     let Ok(content) = fs::read_to_string(path) else {
@@ -456,15 +491,30 @@ pub fn detect() -> DetectReport {
         .map(|s| s.ends_with("/zsh"))
         .unwrap_or(false);
 
+    // Ghostty：brew cask 优先，dmg 安装在 /Applications 也算数。
+    let ghostty_app = detect_ghostty_app();
+    let ghostty_via_brew = brew_installed && brew_cask_installed_sync("ghostty");
     let ghostty = ComponentStatus {
         component: Component::Ghostty,
-        installed: brew_installed && brew_cask_installed_sync("ghostty"),
-        detail: None,
+        installed: ghostty_via_brew || ghostty_app.is_some(),
+        detail: if ghostty_via_brew {
+            Some("brew cask".to_string())
+        } else {
+            ghostty_app
+        },
     };
+
+    // Maple 字体：brew cask 优先，user/system Fonts 目录里有匹配文件也算数。
+    let maple_font_file = detect_maple_font_file();
+    let maple_via_brew = brew_installed && brew_cask_installed_sync(MAPLE_FONT_CASK);
     let maple = ComponentStatus {
         component: Component::MapleFont,
-        installed: brew_installed && brew_cask_installed_sync(MAPLE_FONT_CASK),
-        detail: None,
+        installed: maple_via_brew || maple_font_file.is_some(),
+        detail: if maple_via_brew {
+            Some("brew cask".to_string())
+        } else {
+            maple_font_file
+        },
     };
     let zoxide_path = which_sync("zoxide");
     let zoxide = ComponentStatus {
